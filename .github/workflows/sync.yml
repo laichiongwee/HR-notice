@@ -1,7 +1,16 @@
 name: Sync HR static pages
 
 on:
-  workflow_dispatch:   # manual trigger only
+  workflow_dispatch:
+    inputs:
+      page:
+        description: 'Which page to sync (tender or vacancy)'
+        required: true
+        default: 'tender'
+        type: choice
+        options:
+          - tender
+          - vacancy
 
 permissions:
   contents: write
@@ -13,21 +22,28 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Fetch static pages from local server
+      - name: Fetch static page from local server
         run: |
-          curl -s --max-time 30 "http://rajangport.ddns.net:8080/Mantis/HR/tender_static.php" > tender.html
-          curl -s --max-time 30 "http://rajangport.ddns.net:8080/Mantis/HR/vacancy_static.php" > vacancy.html
-          echo "<!-- Last sync: $(date -u) -->" >> tender.html
-          echo "<!-- Last sync: $(date -u) -->" >> vacancy.html
+          if [ "${{ github.event.inputs.page }}" == "tender" ]; then
+            curl -s --max-time 30 "http://rajangport.ddns.net:8080/Mantis/HR/tender_static.php" > tender.html
+            echo "<!-- Last sync: $(date -u) -->" >> tender.html
+          elif [ "${{ github.event.inputs.page }}" == "vacancy" ]; then
+            curl -s --max-time 30 "http://rajangport.ddns.net:8080/Mantis/HR/vacancy_static.php" > vacancy.html
+            echo "<!-- Last sync: $(date -u) -->" >> vacancy.html
+          fi
 
       - name: Commit and push if changed
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git add tender.html vacancy.html
+          if [ "${{ github.event.inputs.page }}" == "tender" ]; then
+            git add tender.html
+          elif [ "${{ github.event.inputs.page }}" == "vacancy" ]; then
+            git add vacancy.html
+          fi
           if git diff --cached --quiet; then
             echo "No changes to commit"
           else
-            git commit -m "Manual sync at $(date -u)"
+            git commit -m "Manual sync: ${{ github.event.inputs.page }} at $(date -u)"
             git push
           fi
